@@ -25,6 +25,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"image"
 	"image/color"
@@ -34,6 +35,8 @@ import (
 	"io"
 	"io/ioutil"
 	"math"
+	"net/http"
+	"net/url"
 	"os"
 	"path"
 	"strings"
@@ -2088,23 +2091,42 @@ func (f *Fpdf) RegisterImage(fileStr, tp string) (info *ImageInfoType) {
 		return info
 	}
 
-	file, err := os.Open(fileStr)
+	if _, err := url.Parse(fileStr); err != nil {
+		file, err := os.Open(fileStr)
+		if err != nil {
+			f.err = err
+			return
+		}
+		defer file.Close()
+		// First use of this image, get info
+		if tp == "" {
+			pos := strings.LastIndex(fileStr, ".")
+			if pos < 0 {
+				f.err = fmt.Errorf("image file has no extension and no type was specified: %s", fileStr)
+				return
+			}
+			tp = fileStr[pos+1:]
+		}
+
+		return f.RegisterImageReader(fileStr, tp, file)
+	}
+	if tp == "" {
+		f.err = errors.New("Couldn't get type for url")
+		return
+	}
+	var client = http.Client{}
+	reqImg, err := client.Get(fileStr)
 	if err != nil {
 		f.err = err
 		return
 	}
-	defer file.Close()
-
-	// First use of this image, get info
-	if tp == "" {
-		pos := strings.LastIndex(fileStr, ".")
-		if pos < 0 {
-			f.err = fmt.Errorf("image file has no extension and no type was specified: %s", fileStr)
-			return
-		}
-		tp = fileStr[pos+1:]
+	imgFl, err := ioutil.ReadAll(reqImg.Body)
+	if err != nil {
+		f.err = err
+		return
 	}
-
+	reqImg.Body.Close()
+	file := bytes.NewReader(imgFl)
 	return f.RegisterImageReader(fileStr, tp, file)
 }
 
