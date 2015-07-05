@@ -1984,11 +1984,11 @@ func (f *Fpdf) Ln(h float64) {
 // If link refers to an internal page anchor (that is, it is non-zero; see
 // AddLink()), the image will be a clickable internal link. Otherwise, if
 // linkStr specifies a URL, the image will be a clickable external link.
-func (f *Fpdf) Image(fileStr string, x, y, w, h float64, flow bool, tp string, link int, linkStr string) {
+func (f *Fpdf) Image(fileStr string, x, y, w, h float64, flow bool, tp, fileNotFound, tpNotFound string, link int, linkStr string) {
 	if f.err != nil {
 		return
 	}
-	info := f.RegisterImage(fileStr, tp)
+	info := f.RegisterImage(fileStr, tp, fileNotFound, tpNotFound)
 	if f.err != nil {
 		return
 	}
@@ -2085,13 +2085,17 @@ func (f *Fpdf) RegisterImageReader(imgName, tp string, r io.Reader) (info *Image
 // Image() for restrictions on the image and the "tp" parameters.
 //
 // See tutorial 18 for an example of this function.
-func (f *Fpdf) RegisterImage(fileStr, tp string) (info *ImageInfoType) {
+func (f *Fpdf) RegisterImage(fileStr, tp, fileNotFound, tpNotFound string) (info *ImageInfoType) {
 	info, ok := f.images[fileStr]
 	if ok {
 		return info
 	}
 
-	if _, err := url.Parse(fileStr); err != nil {
+	urlStr, err := url.Parse(fileStr)
+	if err != nil {
+		f.err = errors.New("File's url isn't correct")
+	}
+	if urlStr.Scheme != "http" && urlStr.Scheme != "https" {
 		file, err := os.Open(fileStr)
 		if err != nil {
 			f.err = err
@@ -2120,14 +2124,36 @@ func (f *Fpdf) RegisterImage(fileStr, tp string) (info *ImageInfoType) {
 		f.err = err
 		return
 	}
-	imgFl, err := ioutil.ReadAll(reqImg.Body)
-	if err != nil {
-		f.err = err
-		return
+	defer reqImg.Body.Close()
+	if reqImg.StatusCode != 200 {
+		file, err := os.Open(fileNotFound)
+		if err != nil {
+			f.err = err
+			return
+		}
+		defer file.Close()
+		// First use of this image, get info
+		if tp == "" {
+			pos := strings.LastIndex(fileNotFound, ".")
+			if pos < 0 {
+				f.err = fmt.Errorf("image file has no extension and no type was specified: %s", fileStr)
+				return
+			}
+			tp = fileNotFound[pos+1:]
+		}
+
+		return f.RegisterImageReader(fileNotFound, tpNotFound, file)
+	} else {
+
+		imgFl, err := ioutil.ReadAll(reqImg.Body)
+		if err != nil {
+			f.err = err
+			return
+		}
+
+		file := bytes.NewReader(imgFl)
+		return f.RegisterImageReader(fileStr, tp, file)
 	}
-	reqImg.Body.Close()
-	file := bytes.NewReader(imgFl)
-	return f.RegisterImageReader(fileStr, tp, file)
 }
 
 // GetXY returns the abscissa and ordinate of the current position.
