@@ -2133,13 +2133,13 @@ func (f *Fpdf) RegisterImage(fileStr, tp, fileNotFound, tpNotFound string) (info
 		}
 		defer file.Close()
 		// First use of this image, get info
-		if tp == "" {
+		if tpNotFound == "" {
 			pos := strings.LastIndex(fileNotFound, ".")
 			if pos < 0 {
 				f.err = fmt.Errorf("image file has no extension and no type was specified: %s", fileStr)
 				return
 			}
-			tp = fileNotFound[pos+1:]
+			tpNotFound = fileNotFound[pos+1:]
 		}
 
 		return f.RegisterImageReader(fileNotFound, tpNotFound, file)
