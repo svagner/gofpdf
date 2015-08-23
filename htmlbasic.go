@@ -177,6 +177,8 @@ func (html *HTMLBasicType) Write(lineHt float64, htmlStr string) {
 				setStyle(0, 0, 1)
 			case "br":
 				html.pdf.Ln(lineHt)
+			case "p":
+				html.pdf.Ln(lineHt)
 			case "a":
 				hrefStr, ok = el.Attr["href"]
 				if !ok {
