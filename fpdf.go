@@ -2148,8 +2148,7 @@ func (f *Fpdf) RegisterImageFromBytes(data []byte, imagename, tp, fileNotFound, 
 	if tp == "jpeg" {
 		tp = "jpg"
 	}
-	r := new(bytes.Buffer)
-	r.Write(data)
+	r := bytes.NewReader(data)
 	switch tp {
 	case "jpg":
 		info = f.parsejpg(r)
