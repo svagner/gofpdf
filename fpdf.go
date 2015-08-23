@@ -2037,6 +2037,59 @@ func (f *Fpdf) Image(fileStr string, x, y, w, h float64, flow bool, tp, fileNotF
 	return
 }
 
+func (f *Fpdf) ImageFromByte(data []byte, imagename string, x, y, w, h float64, flow bool, tp, fileNotFound, tpNotFound string, link int, linkStr string) {
+	if f.err != nil {
+		return
+	}
+	info := f.RegisterImageFromBytes(data, imagename, tp, fileNotFound, tpNotFound)
+	if f.err != nil {
+		return
+	}
+
+	// Automatic width and height calculation if needed
+	if w == 0 && h == 0 {
+		// Put image at 96 dpi
+		w = -96
+		h = -96
+	}
+	if w < 0 {
+		w = -info.w * 72.0 / w / f.k
+	}
+	if h < 0 {
+		h = -info.h * 72.0 / h / f.k
+	}
+	if w == 0 {
+		w = h * info.w / info.h
+	}
+	if h == 0 {
+		h = w * info.h / info.w
+	}
+	// Flowing mode
+	if flow {
+		if f.y+h > f.pageBreakTrigger && !f.inHeader && !f.inFooter && f.acceptPageBreak() {
+			// Automatic page break
+			x2 := f.x
+			f.AddPageFormat(f.curOrientation, f.curPageSize)
+			if f.err != nil {
+				return
+			}
+			f.x = x2
+		}
+		y = f.y
+		f.y += h
+	}
+	if x < 0 {
+		x = f.x
+	}
+	// dbg("h %.2f", h)
+	// q 85.04 0 0 NaN 28.35 NaN cm /I2 Do Q
+	f.outf("q %.5f 0 0 %.5f %.5f %.5f cm /I%d Do Q", w*f.k, h*f.k, x*f.k, (f.h-(y+h))*f.k, info.i)
+	if link > 0 || len(linkStr) > 0 {
+		f.newLink(x, y, w, h, link, linkStr)
+	}
+	return
+}
+
 // RegisterImageReader registers an image, reading it from Reader r, adding it
 // to the PDF file but not adding it to the page. Use Image() with the same
 // name to add the image to the page. Note that tp should be specified in this
@@ -2074,6 +2127,47 @@ func (f *Fpdf) RegisterImageReader(imgName, tp string, r io.Reader) (info *Image
 	}
 	info.i = len(f.images) + 1
 	f.images[imgName] = info
+
+	return info
+}
+
+func (f *Fpdf) RegisterImageFromBytes(data []byte, imagename, tp, fileNotFound, tpNotFound string) (info *ImageInfoType) {
+	info, ok := f.images[imagename]
+	if ok {
+		return info
+	}
+
+	// First use of this image, get info
+	if tp == "" {
+		pos := strings.LastIndex(imagename, ".")
+		if pos < 0 {
+			f.err = fmt.Errorf("image file has no extension and no type was specified: %s", imagename)
+			return
+		}
+		tp = imagename[pos+1:]
+	}
+
+	tp = strings.ToLower(tp)
+	if tp == "jpeg" {
+		tp = "jpg"
+	}
+	r := new(bytes.Buffer)
+	r.Write(data)
+	switch tp {
+	case "jpg":
+		info = f.parsejpg(r)
+	case "png":
+		info = f.parsepng(r)
+	case "gif":
+		info = f.parsegif(r)
+	default:
+		f.err = fmt.Errorf("unsupported image type: %s", tp)
+	}
+	if f.err != nil {
+		return
+	}
+	info.i = len(f.images) + 1
+	f.images[imagename] = info
 
 	return info
 }
