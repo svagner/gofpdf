@@ -2037,7 +2037,7 @@ func (f *Fpdf) Image(fileStr string, x, y, w, h float64, flow bool, tp, fileNotF
 	return
 }
 
-func (f *Fpdf) ImageFromByte(data []byte, imagename string, x, y, w, h float64, flow bool, tp, fileNotFound, tpNotFound string, link int, linkStr string) {
+func (f *Fpdf) ImageFromBytes(data []byte, imagename string, x, y, w, h float64, flow bool, tp, fileNotFound, tpNotFound string) {
 	if f.err != nil {
 		return
 	}
@@ -2084,9 +2084,6 @@ func (f *Fpdf) ImageFromByte(data []byte, imagename string, x, y, w, h float64, 
 	// dbg("h %.2f", h)
 	// q 85.04 0 0 NaN 28.35 NaN cm /I2 Do Q
 	f.outf("q %.5f 0 0 %.5f %.5f %.5f cm /I%d Do Q", w*f.k, h*f.k, x*f.k, (f.h-(y+h))*f.k, info.i)
-	if link > 0 || len(linkStr) > 0 {
-		f.newLink(x, y, w, h, link, linkStr)
-	}
 	return
 }
 
